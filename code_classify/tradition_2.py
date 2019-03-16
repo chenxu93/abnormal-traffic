@@ -65,7 +65,7 @@ if __name__ == '__main__':
 
 	print("\ndata preparing ... ... ... ")
 
-	#读取数据
+	
 
 	def data_prepare(f1_name,f2_name,y1,y2):
 		d1 = f1_name.values
@@ -121,10 +121,7 @@ if __name__ == '__main__':
 
 	DDoS = pd.read_csv("../flow_labeled/labeld_DDoS.csv")#16050
 
-	#由于Heartbleed和Infiltraton攻击非常少，在做多分类的时候，并不考虑这两类攻击
-	#多分类 做11分类 正常+10类攻击
-
-	#二分类可考虑Heartbleed和Infiltraton攻击
+	
 
 	print("\n数据加载完成，耗时：%d" %(time.time() - start))
 
@@ -178,7 +175,7 @@ if __name__ == '__main__':
 		of.write('training took %fs!\n' % (time.time() - start_time))  
 		predict = model.predict(data_test)  
 		of.write ('classify_report\n')
-		classify_report = metrics.classification_report(label_test, predict)   #使用这种模式
+		classify_report = metrics.classification_report(label_test, predict)   
 		print("\nAccuracy:%f" %metrics.accuracy_score(label_test,predict))
 		print("\nPrecision:%f" %metrics.average_precision_score(label_test,predict))
 		print("\nRecall:%f" %metrics.recall_score(label_test,predict))
