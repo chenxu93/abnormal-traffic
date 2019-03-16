@@ -29,7 +29,6 @@ type_6 = data2feature(f6,6)[:4]
 imgs = np.concatenate((type_0,type_1,type_2,type_3,type_4,type_5,type_6),axis=0)
 
 
-#显示灰度图
 fig = plt.figure()
 for i in range(7):
 	for j in range(4):
@@ -40,7 +39,7 @@ for i in range(7):
 		ax.imshow(img,cmap='gray')
 		plt.axis("off")
 		plt.title(img_title)
-# plt.subplots_adjust(wspace =5, hspace =10)#调整子图间距
+
 plt.show()
 
-#显示彩色图	
+
