@@ -9,13 +9,12 @@ import pandas as pd
 from sklearn.metrics import confusion_matrix
 
 
-#设置GPU按需增长
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 
 sess = tf.Session(config=config)
 
-#======================导入数据========================
+
 def data_prepare(f1_name,f2_name,y1,y2):
 	d1 = f1_name.values
 	d2 = f2_name.values
@@ -24,7 +23,7 @@ def data_prepare(f1_name,f2_name,y1,y2):
 
 	dataset = np.concatenate((d1,d2),axis=0)
 
-	#打乱
+	
 	np.random.shuffle(dataset)
 	return dataset
 
@@ -78,10 +77,6 @@ PortScan_2 = pd.read_csv("../flow_labeled/labeld_PortScan_2.csv")#158329  > 1586
 
 DDoS = pd.read_csv("../flow_labeled/labeld_DDoS.csv")#16050
 
-#由于Heartbleed和Infiltraton攻击非常少，在做多分类的时候，并不考虑这两类攻击
-#多分类 做11分类 正常+10类攻击
-
-#二分类可考虑Heartbleed和Infiltraton攻击
 
 print("\dataset prepared,cost time:%d" %(time.time() - start))
 
@@ -107,7 +102,7 @@ d13 = data2feature(DDoS,10)
 Data_tupple = (d0,d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13)
 
 Data = np.concatenate(Data_tupple,axis=0)
-#是否丢弃五元组信息
+
 Data = discard_fiv_tupple(Data)
 
 np.random.shuffle(Data)
@@ -118,97 +113,68 @@ y_raw = np.array(Data[:,-1],dtype="int32")
 
 data_train,data_test,label_train,label_test = train_test_split(x_raw,y_raw,test_size=0.2,random_state=0)
 #==========================================================================
-#准备要可视化的数据
+
 #==========================================================================
 
 
 
 #==========================================================================
 def labels_transform(mlist,classes):
-	#把一个一维的标签list转化为一个 shape为[batch_size,classes]的numpy数组
+	
 	batch_label = np.zeros((len(mlist),classes),dtype="i4")
 	for i in range(len(mlist)):
 		batch_label[i][mlist[i]] = 1
 	return batch_label
-#===============设置模型超参数======================
+#=====================================
 
 lr = 0.0001
-# 在训练和测试的时候，我们想用不同的 batch_size.所以采用占位符的方式
+
 batch_size = tf.placeholder(tf.int32,shape=[])
-# 每个时刻的输入特征是32维的，就是每个时刻输入一行，一行有 32 个像素
+
 input_size = 160
-# 时序持续长度为32，即每做一次预测，需要先输入32行
+
 timestep_size = 10
-# 每个隐含层的节点数
+
 hidden_size = 256
-# LSTM layer 的层数
+
 layer_num = 2
-# 最后输出分类类别数量，如果是回归预测的话应该是 1
+
 class_num = 11
 
 _X = tf.placeholder(tf.float32,[None,timestep_size*input_size])
 y = tf.placeholder(tf.int32,[None,class_num])
 keep_prob = tf.placeholder(tf.float32)
 
-#========================开始搭建LSTM网络====================
-'''
-把1024个点的字符还原成为32*32的图片
-下面几个步骤是实现RNN/LSTM的关键步骤
-'''
-#步骤1：RNN的输入shape = (bach_size,timestep_size,input_size)
+
+
 X = tf.reshape(_X,[-1,timestep_size,input_size])
 
-#步骤2：定义一层LSTM_cell，只需要说明hidden_size，他会自动匹配X的维度
-#使用激活函数
+
 lstm_cell = tf.contrib.rnn.BasicLSTMCell(num_units=hidden_size,forget_bias=1.0,
 	state_is_tuple=True,activation=None)
 
-#步骤3：添加dropout layer，一般只设置output_keep_prob
-# lstm_cell = tf.contrib.rnn.DropoutWrapper(lstm_cell,input_keep_prob=1.0,output_keep_prob=keep_prob)
+
 rnn_layers = [tf.nn.rnn_cell.LSTMCell(size) for size in [256,256]]
-#步骤4：调用 MultiRNNCell 来实现多层 LSTM
-# mlstm_cell = tf.contrib.rnn.MultiRNNCell([lstm_cell]*layer_num,state_is_tuple=True)
+
 multi_rnn_cell = tf.nn.rnn_cell.MultiRNNCell(rnn_layers)
-#步骤5：用全零来初始化每个state
+
 init_state = multi_rnn_cell.zero_state(batch_size,dtype=tf.float32)
 
-#步骤6：方法一，调用dynamic_rnn() 来让构建好的网络运行起来
-'''
-# ** 当 time_major==False 时， outputs.shape = [batch_size, timestep_size, hidden_size] 
-'''
-# print("\nmlstm_cell shape:%s" %mlstm_cell.shape)
-# print("\ninputs shape:%s" %X.shape)
+
 outputs,state = tf.nn.dynamic_rnn(cell=multi_rnn_cell,inputs=X,
 	initial_state=init_state,dtype=tf.float32,time_major=False)
-#LSTM 输出,最后输出维度是 [batch_size,hidden_size]
+
 h_state = state[-1][1] #或者h_state = outputs[:,-1,:]
 
-'''
-# *************** 为了更好的理解 LSTM 工作原理，我们把上面 步骤6 中的函数自己来实现 ***************
-# 通过查看文档你会发现， RNNCell 都提供了一个 __call__()函数（见最后附），我们可以用它来展开实现LSTM按时间步迭代。
-# **步骤6：方法二，按时间步展开计算
-outputs = list()
-state = init_state
-with tf.variable_scope('RNN'):
-    for timestep in range(timestep_size):
-        if timestep > 0:
-            tf.get_variable_scope().reuse_variables()
-        # 这里的state保存了每一层 LSTM 的状态
-        (cell_output, state) = mlstm_cell(X[:, timestep, :], state)
-        outputs.append(cell_output)
-h_state = outputs[-1]
-'''
 
-#=========================定义损失和优化器，展开训练，完成测试=========================
-# 上面 LSTM 部分的输出会是一个 [hidden_size] 的tensor，我们要分类的话，还需要接一个 softmax 层
-# 首先定义 softmax 的连接权重矩阵和偏置
+
+
 
 W = tf.Variable(tf.truncated_normal(shape=[hidden_size,class_num],stddev=0.1),dtype=tf.float32)
 bias = tf.Variable(tf.constant(0.15,dtype=tf.float32,shape=[class_num]))
 #[batch_size,hidden_size]*[hidden_size,class_num] + [class_num] --> [batch_size,class_num]
 logits = tf.matmul(h_state,W) + bias
 
-# 损失和评估函数
 
 predictions = {
 	"classes":tf.argmax(input=logits,axis=1),
@@ -224,7 +190,7 @@ accuracy = tf.reduce_mean(tf.cast(correct_prediction,tf.float32))
 
 
 
-#下面这四个指标是 local variable 需要在session 里面单独初始化，否则会报错
+
 TP = tf.metrics.true_positives(labels=tf.argmax(y,axis=1),predictions=predictions["classes"])
 FP = tf.metrics.false_positives(labels=tf.argmax(y,axis=1),predictions=predictions["classes"])
 TN = tf.metrics.true_negatives(labels=tf.argmax(y,axis=1),predictions=predictions["classes"])
@@ -232,10 +198,10 @@ FN = tf.metrics.false_negatives(labels=tf.argmax(y,axis=1),predictions=predictio
 recall = tf.metrics.recall(labels=tf.argmax(y,axis=1),predictions=predictions["classes"])
 tf_accuracy = tf.metrics.accuracy(labels=tf.argmax(y,axis=1),predictions=predictions["classes"])
 
-# 开始训练和测试
+
 print("\n"+"="*50 +"Benign Trainging"+"="*50)
 sess.run(tf.global_variables_initializer())
-sess.run(tf.local_variables_initializer())#初始化局部变量
+sess.run(tf.local_variables_initializer())
 _batch_size = 128
 mydata_train = DataSet(data_train,label_train)
 statr = time.time()
@@ -246,17 +212,17 @@ for i in range(2000):
 
 		train_accuracy = sess.run(accuracy,feed_dict={_X:batch[0],y:labels,
 			keep_prob:1.0,batch_size:_batch_size})
-		#已经迭代完成的 epoch 数：
+	
 		print("\nthe %dth loop,training accuracy:%f" %(i+1,train_accuracy))
 	sess.run(train_op,feed_dict={_X:batch[0],y:labels,keep_prob:0.5,
 		batch_size:_batch_size})
 
 print("\ntraining finished cost time:%f" %(time.time() - statr))
-#计算测试数据的准确率
 
 
 
-#批量测试：
+
+
 test_accuracy = 0
 true_positives = 0
 false_positives = 0
