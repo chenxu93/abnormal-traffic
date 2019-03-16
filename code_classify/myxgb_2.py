@@ -55,11 +55,7 @@ PortScan_2 = pd.read_csv("../flow_labeled/labeld_PortScan_2.csv")#158329  > 1586
 DDoS = pd.read_csv("../flow_labeled/labeld_DDoS.csv")#16050
 
 
-print("\n数据加载完成，耗时：%d" %(time.time() - start))
-#由于Heartbleed和Infiltraton攻击非常少，在做多分类的时候，并不考虑这两类攻击
-#多分类 做11分类 正常+10类攻击
 
-#二分类可考虑Heartbleed和Infiltraton攻击
 
 d0 = data2feature(Benign,0)
 d1 = data2feature(DoS_GoldenEye,1)
@@ -88,7 +84,7 @@ Data = np.concatenate(Data_tupple,axis=0)
 Data = discard_fiv_tupple(Data)
 np.random.shuffle(Data)
 
-#屏蔽五元组信息
+
 for x in range(10):
 	Data[:,10+160*x:21+160*x] = 0
 
@@ -129,7 +125,7 @@ print("\n%s" %metrics.confusion_matrix(label_test,pred))
 # pred("\nF1 score:%f" %metrics.f1_score(label_test,pred))
 
 
-#输出特征重要性：
+
 feature_importance = bst.get_score(fmap="",importance_type="weight")
 print("\nfeature importance：")
 print(feature_importance)
@@ -139,7 +135,7 @@ for k,v in feature_importance.items():
 	mfile.write(str(k)+":"+str(v)+"\n")
 mfile.close()
 
-#画出特征重要性
+
 fig,ax = plt.subplots(figsize=(100,50))
 xgb.plot_importance(bst,ax=ax)
 plt.show()
